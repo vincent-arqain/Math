@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsx scripts/build.tsx",
     "check": "tsc --noEmit",
-    "test": "tsx --test scripts/content.test.ts",
+    "test": "tsx --test scripts/*.test.ts",
     "verify": "node scripts/verify.mjs",
     "preview": "node scripts/preview.mjs"
   },

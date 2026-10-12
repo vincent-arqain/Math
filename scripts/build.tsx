@@ -1,17 +1,20 @@
 import React from 'react';
 import {renderToStaticMarkup} from 'react-dom/server';
-import {cp,mkdir,writeFile,readFile,rm} from 'node:fs/promises';
+import {cp,mkdir,writeFile,readFile,rm,readdir,stat} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {loadEntries} from '../src/content';
 import {sections,type Section} from '../src/model';
 import {Layout,Home,Collection,Article,Manage,About} from '../src/components';
 import config from '../site.config.json';
+import {loadStorage} from '../src/storage';
+import {releaseEntries} from '../src/releases';
 
 const root=fileURLToPath(new URL('..',import.meta.url));
 const output=path.resolve(root,'dist');
 if(output!==path.join(path.resolve(root),'dist'))throw new Error('Invalid output directory');
-const items=await loadEntries(path.join(root,'content'));
+const {summary:storage,releases}=await loadStorage(path.join(root,'content'),config.repository);
+const items=[...await loadEntries(path.join(root,'content')),...releaseEntries(releases,config.repository)].sort((a,b)=>b.updated_at.localeCompare(a.updated_at)||a.id.localeCompare(b.id));
 const site=new URL(config.siteUrl);
 if(site.protocol!=='https:'||!site.pathname.endsWith('/'))throw new Error('siteUrl 必须是 HTTPS 且以 / 结尾');
 const base=site.pathname.replace(/\/$/,'');
@@ -36,7 +39,7 @@ async function page(route:string,title:string,body:React.ReactNode,noindex=false
 await page('','一间安静的电子书房',<Home items={items}/>);
 for(const [section,title]of Object.entries(sections))await page(section+'/',title,<Collection section={section as Section} items={items.filter(e=>e.section===section)}/>);
 await page('search/','搜索书房',<Collection items={items}/>,true);
-await page('manage/','管理资料',<Manage items={items}/>,true);
+await page('manage/','管理资料',<Manage items={items} storage={storage}/>,true);
 await page('about/','关于这间书房',<About/>);
 await page('404.html','没有找到这页',<section className="wrap collection-page"><header className="page-heading"><h1>这页暂时不在书架上。</h1><p>它可能已被移动，或还没有公开。</p><a className="button" href="/">返回书房</a></header></section>,true);
 for(const e of items){
@@ -51,4 +54,9 @@ const xml=(s:string)=>s.replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAl
 await writeFile(path.join(output,'sitemap.xml'),'<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'+urls.map(url=>`<url><loc>${xml(url)}</loc></url>`).join('\n')+'\n</urlset>\n');
 await writeFile(path.join(output,'robots.txt'),`User-agent: *\nAllow: /\nSitemap: ${new URL('sitemap.xml',site).href}\n`);
 await writeFile(path.join(output,'.nojekyll'),'');
+await writeFile(path.join(output,'storage.json'),JSON.stringify(storage,null,2)+'\n');
+async function outputBytes(dir:string):Promise<number>{let total=0;for(const item of await readdir(dir,{withFileTypes:true})){const file=path.join(dir,item.name);total+=item.isDirectory()?await outputBytes(file):(await stat(file)).size;}return total;}
+const size=await outputBytes(output);
+if(size>900_000_000)throw new Error('网站发布包超过 900 MB 安全阈值，请将 content 内的大附件迁至 Releases 后再发布。');
+console.log(`Storage: ${storage.usedBytes} / ${storage.totalBytes} bytes; maximum file: ${storage.maxFileBytes} bytes; site output: ${size} bytes.`);
 console.log(`Built ${urls.length+3} pages, ${items.length} published entries → ${config.siteUrl}`);

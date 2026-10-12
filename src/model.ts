@@ -23,4 +23,4 @@ export interface Entry {
 export const entryUrl = (e: Pick<Entry, 'section' | 'id'>) => `/${e.section}/${e.id}`;
 export const tagsOf = (e: Pick<Entry, 'tags'>): string[] => { try { return JSON.parse(e.tags); } catch { return []; } };
 export const formatDate = (date: string) => new Intl.DateTimeFormat('zh-CN', {year:'numeric',month:'2-digit',day:'2-digit',timeZone:'Asia/Shanghai'}).format(new Date(date));
-export const formatSize = (size: number) => size > 1024*1024 ? `${(size/1024/1024).toFixed(1)} MB` : `${Math.ceil(size/1024)} KB`;
+export {formatBytes as formatSize} from '../public/storage-policy.js';

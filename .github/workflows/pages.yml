@@ -2,6 +2,8 @@ name: Publish mathematics website
 on:
   push:
     branches: [main]
+  release:
+    types: [published, edited, deleted, released, unreleased]
   workflow_dispatch:
 permissions:
   contents: read
@@ -14,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          ref: main
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -23,6 +26,8 @@ jobs:
       - run: npm run check
       - run: npm test
       - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
       - run: npm run verify
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
